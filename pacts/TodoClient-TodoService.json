@@ -1,0 +1,113 @@
+{
+  "consumer": {
+    "name": "TodoClient"
+  },
+  "interactions": [
+    {
+      "description": "a request to create a new project",
+      "request": {
+        "body": {
+          "completed": false,
+          "name": "New Project"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "body": {
+            "$.name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/projects"
+      },
+      "response": {
+        "status": 201
+      }
+    },
+    {
+      "description": "a request to get a non-existent project",
+      "providerStates": [
+        {
+          "name": "project with id 999 does not exist"
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/projects/999"
+      },
+      "response": {
+        "body": {
+          "error": "Project not found"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "status": 404
+      }
+    },
+    {
+      "description": "a request to get all projects",
+      "request": {
+        "method": "GET",
+        "path": "/projects"
+      },
+      "response": {
+        "body": [
+          {
+            "completed": false,
+            "id": 1,
+            "name": "Project Alpha"
+          }
+        ],
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a request to get project with id 1",
+      "providerStates": [
+        {
+          "name": "project with id 1 exists"
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/projects/1"
+      },
+      "response": {
+        "body": {
+          "completed": false,
+          "id": 1,
+          "name": "Project Alpha"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "status": 200
+      }
+    }
+  ],
+  "metadata": {
+    "pactRust": {
+      "ffi": "0.5.3",
+      "mockserver": "2.2.1",
+      "models": "1.3.9"
+    },
+    "pactSpecification": {
+      "version": "3.0.0"
+    }
+  },
+  "provider": {
+    "name": "TodoService"
+  }
+}

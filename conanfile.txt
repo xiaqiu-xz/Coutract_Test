@@ -1,0 +1,8 @@
+# conanfile.txt
+[requires]
+boost/1.82.0
+cpprestsdk/2.10.19
+nlohmann_json/3.11.2
+gtest/1.13.0
+[generators]
+cmake

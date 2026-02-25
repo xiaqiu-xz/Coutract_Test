@@ -1,0 +1,108 @@
+name: Contract Tests
+on: [push, pull_request]
+
+jobs:
+  consumer-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ① 先装系统依赖，再跑 cmake
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            build-essential cmake ninja-build \
+            libssl-dev libcurl4-openssl-dev \
+            libboost-all-dev \
+            nlohmann-json3-dev \
+            libcpprest-dev \
+            curl git
+
+      # ② cmake 配置（依赖已就绪）
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
+
+      - name: Build consumer tests
+        run: cmake --build build --target consumer_test -j$(nproc)
+
+      - name: Run consumer tests (generates pact files)
+        run: |
+          cd build && ./consumer_test
+          echo "── 生成的契约文件 ──"
+          ls -lh ../pacts/
+
+      # ③ 发布到 Pact Broker（用官方 Docker action，更稳定）
+      - name: Publish contracts to Pact Broker
+        if: success() && secrets.PACT_BROKER_URL != ''
+        uses: pactflow/actions/publish-pact-files@v1.0.1
+        env:
+          PACT_BROKER_BASE_URL: ${{ secrets.PACT_BROKER_URL }}
+          PACT_BROKER_TOKEN: ${{ secrets.PACT_BROKER_TOKEN }}
+        with:
+          pactfiles: pacts
+          version: ${{ github.sha }}
+          tags: ${{ github.ref_name }}
+
+      - name: Upload pact contracts artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pact-contracts
+          path: ./pacts/*.json
+          retention-days: 7
+
+  provider-verify:
+    needs: consumer-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            build-essential cmake ninja-build \
+            libssl-dev libcurl4-openssl-dev \
+            libboost-all-dev \
+            nlohmann-json3-dev \
+            libcpprest-dev \
+            curl git
+
+      - name: Download pact contracts
+        uses: actions/download-artifact@v4
+        with:
+          name: pact-contracts
+          path: ./pacts
+
+      # ④ 启动 Provider（没有 docker-compose 也能继续）
+      - name: Start provider service
+        run: |
+          if [ -f docker-compose.yml ]; then
+            docker compose up -d todo-service
+            timeout 60 bash -c \
+              'until curl -sf http://localhost:8080/health; do sleep 2; done'
+            echo "Provider 服务已就绪"
+          else
+            echo "⚠️  无 docker-compose.yml，跳过 Provider 启动（仅编译验证）"
+          fi
+
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
+
+      - name: Build provider tests
+        run: cmake --build build --target provider_test -j$(nproc)
+
+      - name: Run provider tests
+        run: ./build/provider_test
+
+      # ⑤ Can I Deploy（只有配了 Broker 才跑）
+      - name: Can I Deploy
+        if: always() && secrets.PACT_BROKER_URL != ''
+        uses: pactflow/actions/can-i-deploy@v1.0.1
+        env:
+          PACT_BROKER_BASE_URL: ${{ secrets.PACT_BROKER_URL }}
+          PACT_BROKER_TOKEN: ${{ secrets.PACT_BROKER_TOKEN }}
+        with:
+          pacticipant: TodoService
+          version: ${{ github.sha }}
+          to-environment: production
