@@ -65,6 +65,7 @@ jobs:
             libboost-all-dev \
             nlohmann-json3-dev \
             libcpprest-dev \
+            libgtest-dev \
             curl git
 
       - name: Download pact contracts
