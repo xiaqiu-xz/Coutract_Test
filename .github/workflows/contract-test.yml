@@ -7,7 +7,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ① 先装系统依赖，再跑 cmake
       - name: Install system dependencies
         run: |
           sudo apt-get update -q
@@ -19,7 +18,6 @@ jobs:
             libcpprest-dev \
             curl git
 
-      # ② cmake 配置（依赖已就绪）
       - name: Configure CMake
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
 
@@ -28,17 +26,18 @@ jobs:
 
       - name: Run consumer tests (generates pact files)
         run: |
+          mkdir -p pacts
           cd build && ./consumer_test
           echo "── 生成的契约文件 ──"
           ls -lh ../pacts/
 
-      # ③ 发布到 Pact Broker（用官方 Docker action，更稳定）
       - name: Publish contracts to Pact Broker
-        if: success() && secrets.PACT_BROKER_URL != ''
-        uses: pactflow/actions/publish-pact-files@v1.0.1
+        if: success() && env.PACT_BROKER_URL != ''   # ← 改用 env
         env:
+          PACT_BROKER_URL: ${{ secrets.PACT_BROKER_URL }}       # ← secret 映射到 env
           PACT_BROKER_BASE_URL: ${{ secrets.PACT_BROKER_URL }}
           PACT_BROKER_TOKEN: ${{ secrets.PACT_BROKER_TOKEN }}
+        uses: pactflow/actions/publish-pact-files@v1.0.1
         with:
           pactfiles: pacts
           version: ${{ github.sha }}
@@ -74,7 +73,6 @@ jobs:
           name: pact-contracts
           path: ./pacts
 
-      # ④ 启动 Provider（没有 docker-compose 也能继续）
       - name: Start provider service
         run: |
           if [ -f docker-compose.yml ]; then
@@ -83,7 +81,7 @@ jobs:
               'until curl -sf http://localhost:8080/health; do sleep 2; done'
             echo "Provider 服务已就绪"
           else
-            echo "⚠️  无 docker-compose.yml，跳过 Provider 启动（仅编译验证）"
+            echo "⚠️  无 docker-compose.yml，跳过 Provider 启动"
           fi
 
       - name: Configure CMake
@@ -95,13 +93,13 @@ jobs:
       - name: Run provider tests
         run: ./build/provider_test
 
-      # ⑤ Can I Deploy（只有配了 Broker 才跑）
       - name: Can I Deploy
-        if: always() && secrets.PACT_BROKER_URL != ''
-        uses: pactflow/actions/can-i-deploy@v1.0.1
+        if: always() && env.PACT_BROKER_URL != ''    # ← 改用 env
         env:
+          PACT_BROKER_URL: ${{ secrets.PACT_BROKER_URL }}       # ← secret 映射到 env
           PACT_BROKER_BASE_URL: ${{ secrets.PACT_BROKER_URL }}
           PACT_BROKER_TOKEN: ${{ secrets.PACT_BROKER_TOKEN }}
+        uses: pactflow/actions/can-i-deploy@v1.0.1
         with:
           pacticipant: TodoService
           version: ${{ github.sha }}
