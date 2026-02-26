@@ -14,29 +14,27 @@ public:
     std::string serverUrl;
     // 获取所有项目列表
     std::vector<Project> getProjects() {
-    web::http::client::http_client client(serverUrl);
-    
-    web::http::http_request req(web::http::methods::GET);
-    req.set_request_uri(U("/projects"));
-    req.headers().add(U("Accept"), U("application/json"));  // ← 加这行
-    
-    auto response = client.request(req).get();
-    auto body = response.extract_json().get();
-    
-    std::vector<Project> projects;
-    for (auto& item : body.as_array()) {
-        Project p;
-        p.id        = item.at(U("id")).as_integer();
-        p.name      = item.at(U("name")).as_string();
-        p.completed = item.at(U("completed")).as_bool();
-        projects.push_back(p);
+        web::http::client::http_client client(serverUrl);
+        web::http::http_request req(web::http::methods::GET);
+        req.set_request_uri(U("/projects"));
+        req.headers().add(U("Accept"), U("application/json"));  // ← 加这行
+        auto response = client.request(req).get();
+        auto body = response.extract_json().get();
+        std::vector<Project> projects;
+        for (auto& item : body.as_array()) {
+            Project p;
+            p.id = item.at(U("id")).as_integer();
+            p.name = item.at(U("name")).as_string();
+            p.completed = item.at(U("completed")).as_bool();
+            projects.push_back(p);
+        }
+        return projects;
     }
-    return projects;
-}
     // 根据 ID 获取单个项目
     Project getProject(int projectId) {
         web::http::client::http_client client(serverUrl);
-        auto path = utility::string_t(U("/projects/")) + utility::conversions::to_string_t(std::to_string(projectId));
+        auto path = utility::string_t(U("/projects/")) +
+                    utility::conversions::to_string_t(std::to_string(projectId));
         auto response = client.request(web::http::methods::GET, path).get();
         if (response.status_code() == 404) {
             throw std::runtime_error("Project not found");
